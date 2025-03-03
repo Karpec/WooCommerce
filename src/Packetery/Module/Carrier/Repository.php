@@ -176,8 +176,8 @@ class Repository {
 	 *
 	 * @return array
 	 */
-	public function getCountries(): array {
-		return $this->wpdbAdapter->get_col( 'SELECT `country` FROM `' . $this->wpdbAdapter->packeteryCarrier . '` WHERE `deleted` = false AND `available` = true GROUP BY `country` ORDER BY `country`' );
+	public function getCountriesWithUnavailable(): array {
+		return $this->wpdbAdapter->get_col( 'SELECT `country` FROM `' . $this->wpdbAdapter->packeteryCarrier . '` WHERE `deleted` = false GROUP BY `country` ORDER BY `country`' );
 	}
 
 	/**
