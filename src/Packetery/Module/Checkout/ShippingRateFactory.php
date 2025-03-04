@@ -102,7 +102,7 @@ class ShippingRateFactory {
 
 		$rateId = null;
 		if ( $methodId === ShippingMethod::PACKETERY_METHOD_ID ) {
-			$availableCarriers = $this->carrierEntityRepository->getByCountryIncludingNonFeed( $customerCountry );
+			$availableCarriers = $this->carrierEntityRepository->getByCountryIncludingNonFeed( $customerCountry, false );
 		} else {
 			$availableCarriers = [];
 			$carrierEntity     = $this->carrierEntityRepository->getAnyById(

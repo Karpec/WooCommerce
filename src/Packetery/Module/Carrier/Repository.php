@@ -122,7 +122,7 @@ class Repository {
 	 *
 	 * @return array|null
 	 */
-	public function getByCountry( string $country, bool $includeUnavailable = false ): ?array {
+	public function getByCountry( string $country, bool $includeUnavailable ): ?array {
 		return $this->wpdbAdapter->get_results(
 			$this->wpdbAdapter->prepare(
 				'SELECT `' . implode( '`, `', self::COLUMN_NAMES ) . '`

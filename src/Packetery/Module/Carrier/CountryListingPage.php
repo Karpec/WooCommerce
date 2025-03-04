@@ -381,7 +381,7 @@ class CountryListingPage {
 	 *
 	 * @return array
 	 */
-	private function getCarriersDataByCountry( string $countryCode, bool $includeUnavailable = false ): array {
+	private function getCarriersDataByCountry( string $countryCode, bool $includeUnavailable ): array {
 		$carriersData    = [];
 		$keyword         = $this->httpRequest->getQuery( self::PARAM_CARRIER_FILTER ) ?? '';
 		$countryCarriers = $this->carrierEntityRepository->getByCountryIncludingNonFeed( $countryCode, $includeUnavailable );

@@ -122,7 +122,7 @@ class EntityRepository {
 	 *
 	 * @return Entity\Carrier[]
 	 */
-	public function getByCountry( string $country, bool $includeUnavailable = false ): array {
+	public function getByCountry( string $country, bool $includeUnavailable ): array {
 		$entities        = [];
 		$countryCarriers = $this->repository->getByCountry( $country, $includeUnavailable );
 
@@ -157,7 +157,7 @@ class EntityRepository {
 	 *
 	 * @return Carrier[]
 	 */
-	public function getByCountryIncludingNonFeed( string $country, bool $includeUnavailable = false ): array {
+	public function getByCountryIncludingNonFeed( string $country, bool $includeUnavailable ): array {
 		$nonFeedCarriers       = [];
 		$nonFeedCarriersArrays = $this->pickupPointsConfig->getNonFeedCarriersByCountry( $country );
 		foreach ( $nonFeedCarriersArrays as $nonFeedCarrierData ) {
