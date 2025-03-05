@@ -28,7 +28,6 @@ use Packetery\Module\Order\PacketAutoSubmitter;
 use Packetery\Module\Order\PacketSubmitter;
 use Packetery\Module\Order\PacketSynchronizer;
 use Packetery\Module\Order\StoredUntilModal;
-use Packetery\Module\Plugin;
 use Packetery\Module\Product;
 use Packetery\Module\ProductCategory;
 use Packetery\Module\QueryProcessor;
@@ -39,6 +38,7 @@ use Packetery\Module\Views\AssetManager;
 use Packetery\Module\Views\ViewAdmin;
 use Packetery\Module\Views\ViewFrontend;
 use Packetery\Module\Views\ViewMail;
+use Packetery\Module\Views\WizardAssetManager;
 
 class HookRegistrar {
 
@@ -239,6 +239,11 @@ class HookRegistrar {
 	 */
 	private $shippingProvider;
 
+	/**
+	 * @var WizardAssetManager
+	 */
+	private $wizardAssetManager;
+
 	public function __construct(
 		PluginHooks $pluginHooks,
 		MessageManager $messageManager,
@@ -278,7 +283,8 @@ class HookRegistrar {
 		PacketSynchronizer $packetSynchronizer,
 		CheckoutSettings $checkoutSettings,
 		ModuleHelper $moduleHelper,
-		ShippingProvider $shippingProvider
+		ShippingProvider $shippingProvider,
+		WizardAssetManager $wizardAssetManager
 	) {
 		$this->messageManager            = $messageManager;
 		$this->checkout                  = $checkout;
@@ -319,6 +325,7 @@ class HookRegistrar {
 		$this->checkoutSettings          = $checkoutSettings;
 		$this->moduleHelper              = $moduleHelper;
 		$this->shippingProvider          = $shippingProvider;
+		$this->wizardAssetManager        = $wizardAssetManager;
 	}
 
 	public function register(): void {
@@ -343,8 +350,6 @@ class HookRegistrar {
 			}
 		);
 
-		$this->wpAdapter->registerUninstallHook( ModuleHelper::getPluginMainFilePath(), [ Plugin::class, 'uninstall' ] );
-
 		if ( $this->wpAdapter->isAdmin() ) {
 			$this->registerBackEnd();
 		} else {
@@ -366,6 +371,7 @@ class HookRegistrar {
 		if ( $this->wpAdapter->doingAjax() === false ) {
 			$this->wpAdapter->addAction( 'init', [ $this->messageManager, 'init' ] );
 			$this->wpAdapter->addAction( 'admin_enqueue_scripts', [ $this->assetManager, 'enqueueAdminAssets' ] );
+			$this->wpAdapter->addAction( 'admin_enqueue_scripts', [ $this->wizardAssetManager, 'enqueueWizardAssets' ] );
 			$this->wpAdapter->addAction(
 				'admin_notices',
 				function () {

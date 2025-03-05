@@ -13,6 +13,7 @@ use DateTime;
 use Packetery\Core\Api;
 use Packetery\Core\Api\Soap\Request\SenderGetReturnRouting;
 use Packetery\Core\CoreHelper;
+use Packetery\Core\Entity\PacketStatus;
 use Packetery\Core\Log;
 use Packetery\Latte\Engine;
 use Packetery\Module\FormFactory;
@@ -110,6 +111,11 @@ class Page {
 	private $urlBuilder;
 
 	/**
+	 * @var PacketSynchronizer
+	 */
+	private $packetSynchronizer;
+
+	/**
 	 * @var string
 	 */
 	private $supportEmailAddress;
@@ -124,6 +130,7 @@ class Page {
 		Http\Request $httpRequest,
 		ModuleHelper $moduleHelper,
 		UrlBuilder $urlBuilder,
+		PacketSynchronizer $packetSynchronizer,
 		string $supportEmailAddress
 	) {
 		$this->latteEngine         = $latteEngine;
@@ -135,6 +142,7 @@ class Page {
 		$this->httpRequest         = $httpRequest;
 		$this->moduleHelper        = $moduleHelper;
 		$this->urlBuilder          = $urlBuilder;
+		$this->packetSynchronizer  = $packetSynchronizer;
 		$this->supportEmailAddress = $supportEmailAddress;
 	}
 
@@ -227,13 +235,33 @@ class Page {
 	}
 
 	/**
+	 * Gets status syncing packet statuses.
+	 *
+	 * @return array<string, array{key: int|string, default: bool, label:string}>
+	 */
+	public function getStatusSyncingPacketStatusesChoiceData(): array {
+		$statuses = $this->packetSynchronizer->getDefaultPacketStatuses();
+
+		return $this->createPacketStatusChoiceData( $statuses );
+	}
+
+	/**
 	 * Gets all packet statuses.
 	 *
-	 * @return array
+	 * @return array<string, array{key: int|string, default: bool, label:string}>
 	 */
-	public function getPacketStatusesChoiceData(): array {
-		$statuses = PacketSynchronizer::getPacketStatuses();
+	public function getAllPacketStatusesChoiceData(): array {
+		$statuses = $this->packetSynchronizer->getPacketStatuses();
 
+		return $this->createPacketStatusChoiceData( $statuses );
+	}
+
+	/**
+	 * @param PacketStatus[] $statuses Packet statuses.
+	 *
+	 * @return array<string, array{key: int|string, default: bool, label:string}>
+	 */
+	private function createPacketStatusChoiceData( array $statuses ): array {
 		$result = [];
 
 		foreach ( $statuses as $status => $statusEntity ) {
@@ -274,7 +302,7 @@ class Page {
 	public function createAutoSubmissionForm(): Form {
 		$gateways = PaymentGatewayHelper::getAvailablePaymentGateways();
 		$form     = $this->formFactory->create( 'packetery_auto_submission_form' );
-		$defaults = $this->optionsProvider->getOptionsByName( OptionsProvider::OPTION_NAME_PACKETERY_AUTO_SUBMISSION );
+		$defaults = $this->optionsProvider->getOptionsByName( OptionNames::PACKETERY_AUTO_SUBMISSION );
 
 		$form->addCheckbox( 'allow', __( 'Allow packet auto-submission', 'packeta' ) )
 				->setRequired( false )
@@ -314,7 +342,7 @@ class Page {
 	 * @return void
 	 */
 	public function onAutoSubmissionFormSuccess( Form $form, array $values ): void {
-		update_option( OptionsProvider::OPTION_NAME_PACKETERY_AUTO_SUBMISSION, $values );
+		update_option( OptionNames::PACKETERY_AUTO_SUBMISSION, $values );
 
 		$this->messageManager->flash_message( __( 'Settings saved.', 'packeta' ), MessageManager::TYPE_SUCCESS, MessageManager::RENDERER_PACKETERY, 'plugin-options' );
 
@@ -330,7 +358,7 @@ class Page {
 	 */
 	private function createPacketStatusSyncForm(): Form {
 		$form     = $this->formFactory->create( 'packetery_packet_status_sync_form' );
-		$settings = $this->optionsProvider->getOptionsByName( OptionsProvider::OPTION_NAME_PACKETERY_SYNC );
+		$settings = $this->optionsProvider->getOptionsByName( OptionNames::PACKETERY_SYNC );
 
 		$form->addText( 'max_status_syncing_packets', __( 'Number of orders synced during one cron call', 'packeta' ) )
 				->setRequired( false )
@@ -355,7 +383,7 @@ class Page {
 		}
 		unset( $settings['status_syncing_order_statuses'] );
 
-		$packetStatuses          = $this->getPacketStatusesChoiceData();
+		$packetStatuses          = $this->getStatusSyncingPacketStatusesChoiceData();
 		$packetStatusesContainer = $form->addContainer( 'status_syncing_packet_statuses' );
 
 		foreach ( $packetStatuses as $packetStatusHash => $packetStatusData ) {
@@ -376,6 +404,7 @@ class Page {
 
 		$orderStatusChangePacketStatuses = $form->addContainer( 'order_status_change_packet_statuses' );
 		$orderStatuses                   = wc_get_order_statuses();
+		$packetStatuses                  = $this->getAllPacketStatusesChoiceData();
 		foreach ( $packetStatuses as $packetStatusHash => $packetStatusData ) {
 			$item         = $orderStatusChangePacketStatuses->addSelect( $packetStatusHash, $packetStatusData['label'], $orderStatuses )
 				->setPrompt( __( 'Order status', 'packeta' ) );
@@ -410,11 +439,11 @@ class Page {
 			$values['status_syncing_order_statuses']
 		);
 		$values['status_syncing_packet_statuses']      = $this->getChosenKeys(
-			$this->getPacketStatusesChoiceData(),
+			$this->getStatusSyncingPacketStatusesChoiceData(),
 			$values['status_syncing_packet_statuses']
 		);
 		$values['order_status_change_packet_statuses'] = $this->translateStatuses(
-			$this->getPacketStatusesChoiceData(),
+			$this->getAllPacketStatusesChoiceData(),
 			$values['order_status_change_packet_statuses']
 		);
 
@@ -426,7 +455,7 @@ class Page {
 			unset( $values['max_days_of_packet_status_syncing'] );
 		}
 
-		update_option( OptionsProvider::OPTION_NAME_PACKETERY_SYNC, $values );
+		update_option( OptionNames::PACKETERY_SYNC, $values );
 
 		$this->messageManager->flash_message( __( 'Settings saved.', 'packeta' ), MessageManager::TYPE_SUCCESS, MessageManager::RENDERER_PACKETERY, 'plugin-options' );
 
@@ -437,7 +466,7 @@ class Page {
 
 	public function createAdvancedForm(): Form {
 		$form     = $this->formFactory->create( 'packetery_advanced_form' );
-		$defaults = $this->optionsProvider->getOptionsByName( OptionsProvider::OPTION_NAME_PACKETERY_ADVANCED );
+		$defaults = $this->optionsProvider->getOptionsByName( OptionNames::PACKETERY_ADVANCED );
 
 		$form->addCheckbox( 'new_carrier_settings_enabled', __( 'Advanced carrier settings', 'packeta' ) )
 			->setRequired( false )
@@ -453,7 +482,7 @@ class Page {
 	}
 
 	public function onAdvancedFormSuccess( Form $form, array $values ): void {
-		update_option( OptionsProvider::OPTION_NAME_PACKETERY_ADVANCED, $values );
+		update_option( OptionNames::PACKETERY_ADVANCED, $values );
 
 		$this->messageManager->flash_message( __( 'Settings saved.', 'packeta' ), MessageManager::TYPE_SUCCESS, MessageManager::RENDERER_PACKETERY, 'plugin-options' );
 
@@ -590,6 +619,10 @@ class Page {
 			]
 		);
 
+		$container->addCheckbox( 'hide_checkout_logo', __( 'Hide Packeta checkout logo', 'packeta' ) )
+			->setRequired( false )
+			->setDefaultValue( OptionsProvider::HIDE_CHECKOUT_LOGO_DEFAULT );
+
 		$container->addSelect(
 			'email_hook',
 			__( 'Hook used to view information in email', 'packeta' ),
@@ -619,8 +652,8 @@ class Page {
 
 		$form->addSubmit( 'save', __( 'Save changes', 'packeta' ) );
 
-		if ( $this->optionsProvider->has_any( OptionsProvider::OPTION_NAME_PACKETERY ) ) {
-			$container->setDefaults( $this->optionsProvider->getOptionsByName( OptionsProvider::OPTION_NAME_PACKETERY ) );
+		if ( $this->optionsProvider->has_any( OptionNames::PACKETERY ) ) {
+			$container->setDefaults( $this->optionsProvider->getOptionsByName( OptionNames::PACKETERY ) );
 		}
 
 		return $form;
@@ -657,7 +690,7 @@ class Page {
 					continue;
 				}
 
-				add_settings_error( OptionsProvider::OPTION_NAME_PACKETERY, esc_attr( $control->getName() ), "{$control->getCaption()}: {$control->getError()}" );
+				add_settings_error( OptionNames::PACKETERY, esc_attr( $control->getName() ), "{$control->getCaption()}: {$control->getError()}" );
 			}
 		}
 
@@ -728,7 +761,7 @@ class Page {
 			$options['free_shipping_shown'] = (int) $packeteryContainer['free_shipping_shown']->getValue();
 		}
 
-		$previousOptions = $this->optionsProvider->getOptionsByName( OptionsProvider::OPTION_NAME_PACKETERY );
+		$previousOptions = $this->optionsProvider->getOptionsByName( OptionNames::PACKETERY );
 		if ( ! isset( $options['default_weight_enabled'] ) ) {
 			if ( isset( $previousOptions['default_weight'] ) ) {
 				$options['default_weight'] = $previousOptions['default_weight'];
@@ -890,7 +923,7 @@ class Page {
 		);
 
 		$lastExport       = null;
-		$lastExportOption = get_option( Exporter::OPTION_LAST_SETTINGS_EXPORT );
+		$lastExportOption = get_option( OptionNames::LAST_SETTINGS_EXPORT );
 		if ( $lastExportOption !== false ) {
 			$date = DateTime::createFromFormat( DATE_ATOM, $lastExportOption );
 			if ( $date !== false ) {

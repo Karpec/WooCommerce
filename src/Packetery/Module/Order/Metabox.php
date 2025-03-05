@@ -17,6 +17,7 @@ use Packetery\Module\MessageManager;
 use Packetery\Module\ModuleHelper;
 use Packetery\Module\Options\OptionsProvider;
 use Packetery\Module\Plugin;
+use Packetery\Module\Transients;
 use Packetery\Module\WidgetOptionsBuilder;
 use Packetery\Nette\Forms;
 use Packetery\Nette\Http\Request;
@@ -24,6 +25,7 @@ use WC_Data_Exception;
 use WC_Order;
 
 class Metabox {
+
 	private const PART_ERROR          = 'error';
 	private const PART_CARRIER_CHANGE = 'carrierChange';
 	private const PART_MAIN           = 'main';
@@ -108,6 +110,11 @@ class Metabox {
 	 */
 	private $wpAdapter;
 
+	/**
+	 * @var PacketStatusResolver
+	 */
+	private $packetStatusResolver;
+
 	public function __construct(
 		Engine $latteEngine,
 		MessageManager $messageManager,
@@ -123,7 +130,8 @@ class Metabox {
 		DetailCommonLogic $detailCommonLogic,
 		Form $orderForm,
 		CarrierModal $carrierModal,
-		WpAdapter $wpAdapter
+		WpAdapter $wpAdapter,
+		PacketStatusResolver $packetStatusResolver
 	) {
 		$this->latteEngine          = $latteEngine;
 		$this->messageManager       = $messageManager;
@@ -140,6 +148,7 @@ class Metabox {
 		$this->orderForm            = $orderForm;
 		$this->carrierModal         = $carrierModal;
 		$this->wpAdapter            = $wpAdapter;
+		$this->packetStatusResolver = $packetStatusResolver;
 	}
 
 	public function register(): void {
@@ -265,7 +274,7 @@ class Metabox {
 				]
 			);
 
-			$packetStatusTranslatedName = PacketStatusResolver::getTranslatedName( $order->getPacketStatus() );
+			$packetStatusTranslatedName = $this->packetStatusResolver->getTranslatedName( $order->getPacketStatus() );
 			/** @var array<string, string> $statusClasses */
 			$statusClasses = [
 				'received data'         => 'received-data',
@@ -342,12 +351,12 @@ class Metabox {
 			$this->coreHelper->getStringFromDateTime( $order->getDeliverOn(), CoreHelper::DATEPICKER_FORMAT )
 		);
 
-		$prevInvalidValues = get_transient( 'packetery_metabox_nette_form_prev_invalid_values' );
+		$prevInvalidValues = get_transient( Transients::METABOX_NETTE_FORM_PREV_INVALID_VALUES );
 		if ( $prevInvalidValues !== null && $prevInvalidValues !== false ) {
 			$this->form->setValues( $prevInvalidValues );
 			$this->form->validate();
 		}
-		delete_transient( 'packetery_metabox_nette_form_prev_invalid_values' );
+		delete_transient( Transients::METABOX_NETTE_FORM_PREV_INVALID_VALUES );
 
 		$isPacketSubmissionPossible = $this->orderValidator->isValid( $order );
 		$packetSubmitUrl            = $this->getOrderActionLink( $order, PacketActionsCommonLogic::ACTION_SUBMIT_PACKET );
@@ -472,7 +481,7 @@ class Metabox {
 		}
 
 		if ( $this->form->isValid() === false ) {
-			set_transient( 'packetery_metabox_nette_form_prev_invalid_values', $this->form->getValues( 'array' ) );
+			set_transient( Transients::METABOX_NETTE_FORM_PREV_INVALID_VALUES, $this->form->getValues( 'array' ) );
 			$this->messageManager->flash_message( $this->wpAdapter->__( 'Packeta: entered data is not valid!', 'packeta' ), MessageManager::TYPE_ERROR );
 
 			return;
